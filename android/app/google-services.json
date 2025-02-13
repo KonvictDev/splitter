@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "10744610539",
+    "project_id": "splitter-ace80",
+    "storage_bucket": "splitter-ace80.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:10744610539:android:db5e7b43739e2eff35c8ae",
+        "android_client_info": {
+          "package_name": "com.example.splitter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBP0IMir1lpvnpM44BgOs2TyHW4nKun6EI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
