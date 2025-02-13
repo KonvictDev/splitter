@@ -192,7 +192,7 @@ class _GroupsPageState extends State<GroupsPage> {
                 child: groupList.isEmpty
                     ? Center(
                   child: Text(
-                    'No groups available. Add a group to get started!',
+                    'No groups available.  Add a group to get started!',
                     style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                     textAlign: TextAlign.center,
                   ),
