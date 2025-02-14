@@ -14,8 +14,9 @@ import 'package:splitter/widgets/OwedTextWidget.dart';
 class GroupDetailsPage extends StatefulWidget {
   final String groupId;
   final String groupName;
+  final bool isGroupOwner;
 
-  const GroupDetailsPage({Key? key, required this.groupId, required this.groupName}) : super(key: key);
+  const GroupDetailsPage({Key? key, required this.groupId, required this.groupName, required this.isGroupOwner}) : super(key: key);
 
   @override
   _GroupDetailsPageState createState() => _GroupDetailsPageState();
@@ -107,9 +108,89 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
     }
   }
 
+  Future<void> _sendReminder() async {
+    // Implement the actual reminder-sending logic here.
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Reminder sent successfully."),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 3),
+      ),
+    );
+  }
+
+  /// Builds the owed text widget. For owners, it displays "They owed:" with the total split amount.
+  Widget _buildOwedTextWidget(double screenWidth) {
+    if (widget.isGroupOwner) {
+      double total = 0.0;
+      List<dynamic> splits = groupData?['splits'] as List<dynamic>? ?? [];
+      for (var split in splits) {
+        if (split is Map<String, dynamic> && split['splitAmount'] != null) {
+          double amount = 0.0;
+          try {
+            amount = double.parse(split['splitAmount'].toString());
+          } catch (e) {
+            amount = 0.0;
+          }
+          total += amount;
+        }
+      }
+      return Padding(
+        padding: const EdgeInsets.only(top: 20.0), // Adjust the padding as needed
+        child: Container(
+          width: screenWidth, // Ensures the container takes full screen width
+          child: Column(
+            children: [
+              Text(
+                "₹${total.toStringAsFixed(2)}",
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 30,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                "they owe you",
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      return OwedTextWidget(
+        groupData: groupData!,
+        currentUserPhone: currentUserPhone,
+        screenWidth: screenWidth,
+      );
+    }
+  }
+
+
+
+
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+
+    // Calculate total split amount if groupData is available
+    double totalSplitAmount = 0.0;
+    if (groupData != null && groupData!['splits'] != null) {
+      final splitsList = groupData!['splits'] as List<dynamic>;
+      for (var split in splitsList) {
+        if (split is Map<String, dynamic>) {
+          totalSplitAmount +=
+              double.tryParse(split['splitAmount']?.toString() ?? '0') ?? 0.0;
+        }
+      }
+    }
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -146,13 +227,16 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
                       ownerAvatarUrl: groupOwnerAvatar,
                       screenWidth: screenWidth,
                     ),
-                    OwedTextWidget(
-                      groupData: groupData!,
-                      currentUserPhone: currentUserPhone,
-                      screenWidth: screenWidth,
-                    ),
+                    _buildOwedTextWidget(screenWidth),
                     ActionButtonsWidget(
-                      onSettleUp: _settleUp,
+                      onSettleUp: widget.isGroupOwner ? _sendReminder : _settleUp,
+                      isGroupOwner: widget.isGroupOwner,
+                      label: widget.isGroupOwner
+                          ? "Send Reminder"
+                          : "Settle Up",
+                      icon: widget.isGroupOwner
+                          ? Icons.notifications
+                          : Icons.check,
                     ),
                     const SizedBox(height: 13),
                     const Align(

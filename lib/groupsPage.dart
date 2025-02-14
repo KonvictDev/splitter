@@ -210,6 +210,7 @@ class _GroupsPageState extends State<GroupsPage> {
                             builder: (context) => GroupDetailsPage(
                               groupId: group['groupId'],
                               groupName: group['groupName'],
+                              isGroupOwner: group['isgroupowner'] ?? true,
                             ),
                           ),
                         );

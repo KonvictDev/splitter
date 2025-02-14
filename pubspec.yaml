@@ -39,6 +39,7 @@ dependencies:
   shimmer: ^3.0.0
   slider_button: ^2.1.0
   logger: ^2.5.0
+  firebase_crashlytics: ^4.3.2
   intl: ^0.20.2
   flutter:
     sdk: flutter

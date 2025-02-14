@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 class AppConstants {
   // Colors
   static const Color primaryColor = Color(0xFF00C6FB);
+  static const Color primaryGradientColor = Color(0xFFFFF176);
   static const Color secondaryColor = Color(0xFF988F46);
   static const Color errorColor = Colors.red;
   static const Color textColor = Colors.black;
