@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'Constants/AppConstants.dart';
+import 'bottom_navigation_main_screen.dart';
 import 'helper/SplitCalculator.dart';
 import 'widgets/ContactRow.dart';
 import 'widgets/EditSplitDialog.dart';
@@ -176,7 +177,7 @@ class _SplitTransactionScreenState extends State<SplitTransactionScreen> {
         // Here we use the contact's phone number as the key.
         friends[contactPhone] = {
           'name': contact['name'],
-          'phoneNumber': contact['number'],
+          'phoneNumber': contactPhone,
           'theyOwe': splitAmount,
         };
       }
@@ -413,17 +414,7 @@ class _SplitTransactionScreenState extends State<SplitTransactionScreen> {
                       ),
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
-                    child: Text(
-                      'Current Total Split: \$${totalCustomSplit.toStringAsFixed(2)} / \$${widget.amount.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: isValidSplit ? Colors.green : AppConstants.errorColor,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+
                   Padding(
                     padding: const EdgeInsets.all(5.0),
                     child: Center(
@@ -576,6 +567,13 @@ class _SplitTransactionScreenState extends State<SplitTransactionScreen> {
                                     backgroundColor: Colors.green,
                                   ),
                                 );
+
+                                Navigator.of(context).pushReplacement(
+                                  MaterialPageRoute(
+                                    builder: (context) => BottomNavigationMainScreen(),
+                                  ),
+                                );
+
                               } on FirebaseException catch (e) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(

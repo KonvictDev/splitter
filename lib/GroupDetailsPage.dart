@@ -173,9 +173,6 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
   }
 
 
-
-
-
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
