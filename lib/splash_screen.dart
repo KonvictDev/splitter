@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'bottom_navigation_main_screen.dart';
 import 'phone_auth/phone_auth_screen.dart';
 
@@ -29,13 +30,27 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     // Start animation
     _animationController.forward();
 
-    // Navigate to HomeScreen after 3 seconds
-    Timer(const Duration(seconds: 3), () {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => PhoneAuthPage()),
-      );
+    // Navigate after 3 seconds after checking login status
+    Timer(const Duration(seconds: 3), () async {
+      bool isLoggedIn = await checkLoginStatus();
+      if (isLoggedIn) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => BottomNavigationMainScreen()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => PhoneAuthPage()),
+        );
+      }
     });
+  }
+
+  /// Checks if the user is already logged in using Firebase Auth.
+  Future<bool> checkLoginStatus() async {
+    User? user = FirebaseAuth.instance.currentUser;
+    return user != null;
   }
 
   @override

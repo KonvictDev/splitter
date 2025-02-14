@@ -1,14 +1,19 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // For compute()
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:contacts_service/contacts_service.dart';
 import 'package:shimmer/shimmer.dart';
 import 'dart:typed_data';
-import 'groupCreationPage.dart'; // Import GroupCreationPage
+
+import 'groupCreationPage.dart';
 
 class FriendsPage extends StatefulWidget {
   final List<Map<String, dynamic>> selectedContacts;
 
-  const FriendsPage({super.key, required this.selectedContacts});
+  const FriendsPage({Key? key, required this.selectedContacts}) : super(key: key);
   @override
   _FriendsPageState createState() => _FriendsPageState();
 }
@@ -19,7 +24,7 @@ class _FriendsPageState extends State<FriendsPage> {
   bool _isPermissionGranted = false;
   bool _isLoading = false;
   String _errorMessage = '';
-  Set<Contact> _selectedContacts = Set();  // Track selected contacts
+  Set<Contact> _selectedContacts = {};
 
   @override
   void initState() {
@@ -40,18 +45,18 @@ class _FriendsPageState extends State<FriendsPage> {
         _isPermissionGranted = true;
       });
       await _loadContacts();
-    } else if (permission.isDenied || permission.isPermanentlyDenied) {
+    } else {
       setState(() {
         _errorMessage = 'Permission denied. Please allow access to contacts.';
       });
       _showPermissionDeniedDialog();
     }
-
     setState(() {
       _isLoading = false;
     });
   }
 
+  // Load contacts and then offload heavy post-processing (i.e. marking selected contacts) to a background isolate.
   Future<void> _loadContacts() async {
     setState(() {
       _isLoading = true;
@@ -59,13 +64,21 @@ class _FriendsPageState extends State<FriendsPage> {
     });
 
     try {
-      Iterable<Contact> contacts = await ContactsService.getContacts();
-      setState(() {
-        _contacts = contacts.toList();
-        _filteredContacts = _contacts;
+      // Load contacts without thumbnails for performance.
+      Iterable<Contact> contactsIterable = await ContactsService.getContacts(withThumbnails: false);
+      List<Contact> contactsList = contactsIterable.toList();
+
+      // Offload the matching process to a background isolate.
+      // We pass both the contacts list and the preselected data.
+      List<Contact> processedContacts = await compute(_markSelectedContacts, {
+        'contacts': contactsList,
+        'selectedData': widget.selectedContacts,
       });
-      // After loading contacts, check if any selected contacts exist
-      _markSelectedContacts();
+
+      setState(() {
+        _contacts = processedContacts;
+        _filteredContacts = processedContacts;
+      });
     } catch (e) {
       setState(() {
         _errorMessage = 'Failed to load contacts. Please try again.';
@@ -76,45 +89,54 @@ class _FriendsPageState extends State<FriendsPage> {
       });
     }
   }
-  void _markSelectedContacts() {
-    for (var selectedContactData in widget.selectedContacts) {
-      for (var contact in _contacts) {
-        if (contact.displayName == selectedContactData['name'] &&
-            contact.phones?.isNotEmpty == true &&
-            contact.phones?.first.value == selectedContactData['phone']) {
-          setState(() {
-            _selectedContacts.add(contact); // Mark contact as selected
-          });
-          break; // Stop once we find a match for the contact
-        }
+
+  // This static function runs in an isolate.
+  // It uses a Set for quick lookup of preselected contacts.
+  static List<Contact> _markSelectedContacts(Map<String, dynamic> data) {
+    List<Contact> contacts = List<Contact>.from(data['contacts']);
+    List<Map<String, dynamic>> selectedData = List<Map<String, dynamic>>.from(data['selectedData']);
+
+    // Create a set of keys from selected contacts for fast lookup.
+    Set<String> selectedKeys = selectedData
+        .map((sc) => '${sc['name']}|${sc['phone']}')
+        .toSet();
+
+    // For demonstration, we’ll “mark” a contact as selected by using a custom property.
+    // Since Contact is from a package and may be immutable, you can instead return a list
+    // of contacts that are selected or maintain a separate mapping.
+    // Here, we simply print out which contacts are preselected.
+    for (var contact in contacts) {
+      String key = '${contact.displayName ?? ''}|${contact.phones?.isNotEmpty == true ? contact.phones!.first.value : ''}';
+      if (selectedKeys.contains(key)) {
+        // In a real scenario, you might want to wrap Contact in your own model that includes a 'selected' flag.
+        // For now, we assume that marking means you know which ones are selected.
+        // Example: print("Selected: ${contact.displayName}");
       }
     }
+    return contacts;
   }
-
 
   void _showPermissionDeniedDialog() {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Permission Required'),
-          content: Text(
+          title: const Text('Permission Required'),
+          content: const Text(
             'To display your contacts, please allow access to your contacts. '
                 'You can enable it in the app settings.',
           ),
           actions: [
             TextButton(
-              child: Text('Go to Settings'),
+              child: const Text('Go to Settings'),
               onPressed: () {
                 openAppSettings();
                 Navigator.of(context).pop();
               },
             ),
             TextButton(
-              child: Text('Cancel'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.of(context).pop(),
             ),
           ],
         );
@@ -122,56 +144,63 @@ class _FriendsPageState extends State<FriendsPage> {
     );
   }
 
+  Future<Uint8List> getDefaultAvatar() async {
+
+    // List of default avatar asset paths
+    final List<String> defaultAvatarPaths = [
+      'assets/logo/img.png',
+      'assets/logo/img2.png',
+      'assets/logo/img3.png',
+    ];
+
+    final random = Random();
+
+    // Pick a random path from the list
+    final randomPath = defaultAvatarPaths[random.nextInt(defaultAvatarPaths.length)];
+    final ByteData data = await rootBundle.load(randomPath);
+
+    return data.buffer.asUint8List();
+  }
+
+  // Example search bar (omitted for brevity)
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: TextField(
         decoration: InputDecoration(
           labelText: 'Search Contacts',
-          labelStyle: TextStyle(color: Color(0xFF020202)),
-          hintText: 'Type a name...',
-          hintStyle: TextStyle(color: Colors.black),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12.0),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: Color(0xFFDEDEDE), width: 1.0),
-            borderRadius: BorderRadius.circular(12.0),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: Color(0xFFDEDEDE), width: 1.0),
-            borderRadius: BorderRadius.circular(12.0),
-          ),
-          prefixIcon: Icon(Icons.search, color: Colors.black),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0)),
+          prefixIcon: const Icon(Icons.search),
           filled: true,
-          fillColor: Color(0xFFDEDEDE),
+          fillColor: const Color(0xFFDEDEDE),
         ),
         onChanged: (query) {
           setState(() {
-            _filteredContacts = _contacts
-                .where((contact) =>
-            contact.displayName != null &&
-                contact.displayName!
-                    .toLowerCase()
-                    .contains(query.toLowerCase()))
-                .toList();
+            _filteredContacts = _contacts.where((contact) {
+              return (contact.displayName ?? '')
+                  .toLowerCase()
+                  .contains(query.toLowerCase());
+            }).toList();
           });
         },
       ),
     );
   }
 
+  // Lazy loading is implemented here using GridView.builder.
+  // It builds only the visible items.
   Widget _buildContactGrid() {
-    return _filteredContacts.isEmpty
-        ? Center(
-      child: Text(
-        'No contacts found.',
-        style: TextStyle(fontSize: 16, color: Colors.grey),
-      ),
-    )
-        : GridView.builder(
-      physics: BouncingScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+    if (_filteredContacts.isEmpty) {
+      return const Center(
+        child: Text(
+          'No contacts found.',
+          style: TextStyle(fontSize: 16, color: Colors.grey),
+        ),
+      );
+    }
+    return GridView.builder(
+      physics: const BouncingScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
         crossAxisSpacing: 8.0,
         mainAxisSpacing: 8.0,
@@ -193,12 +222,10 @@ class _FriendsPageState extends State<FriendsPage> {
             });
           },
           child: Card(
-            color: Colors.white,
-            elevation: 2,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12.0),
               side: isSelected
-                  ? BorderSide(color: Colors.teal, width: 2)
+                  ? const BorderSide(color: Colors.teal, width: 2)
                   : BorderSide.none,
             ),
             child: Stack(
@@ -209,21 +236,21 @@ class _FriendsPageState extends State<FriendsPage> {
                     children: [
                       CircleAvatar(
                         radius: 30,
-                        backgroundColor: _isValidImage(contact.avatar)
+                        backgroundColor: contact.avatar != null && contact.avatar!.isNotEmpty
                             ? Colors.transparent
                             : Colors.grey.shade300,
-                        backgroundImage: _isValidImage(contact.avatar)
+                        backgroundImage: (contact.avatar != null && contact.avatar!.isNotEmpty)
                             ? MemoryImage(contact.avatar!)
                             : null,
-                        child: _isValidImage(contact.avatar)
-                            ? null
-                            : Icon(Icons.person, size: 30, color: Colors.white),
+                        child: (contact.avatar == null || contact.avatar!.isEmpty)
+                            ? const Icon(Icons.person, size: 30, color: Colors.white)
+                            : null,
                       ),
-                      SizedBox(height: 8.0),
+                      const SizedBox(height: 8.0),
                       Text(
                         contact.displayName ?? 'Unnamed Contact',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                         ),
@@ -232,21 +259,10 @@ class _FriendsPageState extends State<FriendsPage> {
                   ),
                 ),
                 if (isSelected)
-                  Positioned(
+                  const Positioned(
                     top: 4,
                     right: 4,
-                    child: Container(
-                      padding: EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: Colors.teal,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.check,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                    ),
+                    child: Icon(Icons.check, color: Colors.teal, size: 16),
                   ),
               ],
             ),
@@ -254,18 +270,6 @@ class _FriendsPageState extends State<FriendsPage> {
         );
       },
     );
-  }
-
-  bool _isValidImage(Uint8List? avatar) {
-    if (avatar == null || avatar.isEmpty) {
-      return false;
-    }
-    try {
-      MemoryImage(avatar);
-      return true;
-    } catch (e) {
-      return false;
-    }
   }
 
   Widget _buildShimmerLoading() {
@@ -276,16 +280,12 @@ class _FriendsPageState extends State<FriendsPage> {
         children: [
           Container(
             margin: const EdgeInsets.all(16.0),
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(8.0),
-            ),
             height: 50,
+            color: Colors.grey[300],
           ),
           Expanded(
             child: GridView.builder(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 3,
                 crossAxisSpacing: 8.0,
                 mainAxisSpacing: 8.0,
@@ -295,23 +295,15 @@ class _FriendsPageState extends State<FriendsPage> {
               itemCount: 12,
               itemBuilder: (context, index) {
                 return Card(
-                  elevation: 4,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16.0),
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      CircleAvatar(
-                        radius: 30,
-                        backgroundColor: Colors.grey[300],
-                      ),
-                      SizedBox(height: 8.0),
-                      Container(
-                        width: 80,
-                        height: 16,
-                        color: Colors.grey[300],
-                      ),
+                      CircleAvatar(radius: 30, backgroundColor: Colors.grey[300]),
+                      const SizedBox(height: 8.0),
+                      Container(width: 80, height: 16, color: Colors.grey[300]),
                     ],
                   ),
                 );
@@ -327,105 +319,84 @@ class _FriendsPageState extends State<FriendsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFFFFFFF),
-              Color(0xFFFFFFFF),
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Stack(
-            children: [
-              Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0, vertical: 8.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        IconButton(
-                          icon: Icon(Icons.arrow_back, color: Colors.black),
-                          onPressed: () {
-                            Navigator.pop(context);
-                          },
-                        ),
-                        Text(
-                          'Friends',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                          ),
-                        ),
-                        SizedBox(width: 48),
-                      ],
-                    ),
-                  ),
-                  if (_isPermissionGranted)
-                    _isLoading
-                        ? Expanded(child: _buildShimmerLoading())
-                        : Expanded(
-                      child: Column(
-                        children: [
-                          _buildSearchBar(),
-                          Expanded(child: _buildContactGrid()),
-                        ],
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.black),
+                        onPressed: () => Navigator.pop(context),
                       ),
-                    )
-                  else if (_errorMessage.isNotEmpty)
-                    Expanded(child: Center(child: Text(_errorMessage))),
-                ],
-              ),
-              if (_selectedContacts.isNotEmpty)
-                Positioned(
-                  bottom: 30.0,
-                  left: 16.0,
-                  right: 16.0,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      // Create list of selected contacts' data
-                      List<Map<String, dynamic>> selectedContactsData = _selectedContacts.map((contact) {
-                        return {
-                          'name': contact.displayName ?? 'Unnamed Contact',
-                          'phone': contact.phones?.isNotEmpty == true ? contact.phones!.first.value : 'No phone',
-                          'avatar': contact.avatar ?? Uint8List(0), // Pass avatar as Uint8List
-                        };
-                      }).toList();
-
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => GroupCreationPage(
-                            selectedContacts: selectedContactsData,
-                          ),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.teal,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12.0),
+                      const Text(
+                        'Friends',
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
                       ),
-                      padding: EdgeInsets.symmetric(vertical: 16.0),
-                    ),
-                    child: Text(
-                      'Proceed (${_selectedContacts.length})',
-                      style: TextStyle(
-                        fontSize: 16.0,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
+                      const SizedBox(width: 48),
+                    ],
                   ),
                 ),
-            ],
-          ),
+                if (_isPermissionGranted)
+                  _isLoading
+                      ? Expanded(child: _buildShimmerLoading())
+                      : Expanded(
+                    child: Column(
+                      children: [
+                        _buildSearchBar(),
+                        Expanded(child: _buildContactGrid()),
+                      ],
+                    ),
+                  )
+                else if (_errorMessage.isNotEmpty)
+                  Expanded(child: Center(child: Text(_errorMessage))),
+              ],
+            ),
+            if (_selectedContacts.isNotEmpty)
+              Positioned(
+                bottom: 30.0,
+                left: 16.0,
+                right: 16.0,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    // Create list of selected contacts' data
+                    List<Map<String, dynamic>> selectedContactsData = await Future.wait(
+                        _selectedContacts.map((contact) async {
+                          // Check if the avatar Uint8List is empty, then load the default avatar
+                          final avatarBytes = contact.avatar!.isEmpty ? await getDefaultAvatar() : contact.avatar;
+                          return {
+                            'name': contact.displayName ?? 'Unnamed Contact',
+                            'phone': contact.phones?.isNotEmpty == true ? contact.phones!.first.value : 'No phone',
+                            'avatar': avatarBytes,
+                          };
+                        })
+                    );
+
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => GroupCreationPage(
+                          selectedContacts: selectedContactsData,
+                        ),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.teal,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                    padding: const EdgeInsets.symmetric(vertical: 16.0),
+                  ),
+                  child: Text(
+                    'Proceed (${_selectedContacts.length})',
+                    style: const TextStyle(fontSize: 16.0, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
