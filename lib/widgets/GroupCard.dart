@@ -65,7 +65,7 @@ class GroupCard extends StatelessWidget {
                   children: [
                     const Text('You owe', style: TextStyle(fontSize: 12)),
                     Text(
-                      '\$$owedAmount',
+                      '\$${owedAmount.toStringAsFixed(2)}',
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ],
