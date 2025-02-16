@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -9,6 +10,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'Constants/AppConstants.dart';
 import 'bottom_navigation_main_screen.dart';
+import 'helper/PushNotificationService.dart';
 import 'helper/SplitCalculator.dart';
 import 'widgets/ContactRow.dart';
 import 'widgets/EditSplitDialog.dart';
@@ -19,6 +21,7 @@ class SplitTransactionScreen extends StatefulWidget {
   final double amount;
   final List<Map<String, dynamic>> contacts;
   final String groupName;
+
 
   const SplitTransactionScreen({
     Key? key,
@@ -45,7 +48,7 @@ class _SplitTransactionScreenState extends State<SplitTransactionScreen> {
     Color(0xFFFFC6FF),
     Color(0xFF9AE6B4),
   ];
-
+  final pushService = PushNotificationService();
   late final SplitCalculator splitCalculator;
   late final String formattedDate;
 
@@ -328,6 +331,33 @@ class _SplitTransactionScreenState extends State<SplitTransactionScreen> {
     }
   }
 
+  Future<Map<String, String>?> getRandomNotification() async {
+    try {
+      // Retrieve all documents from the "notifications" collection.
+      QuerySnapshot snapshot =
+      await FirebaseFirestore.instance.collection('notifications').get();
+
+      // Check if there are any documents.
+      if (snapshot.docs.isEmpty) {
+        return null;
+      }
+
+      // Generate a random index within the range of available documents.
+      int randomIndex = Random().nextInt(snapshot.docs.length);
+      DocumentSnapshot randomDoc = snapshot.docs[randomIndex];
+
+      // Extract the "title" and "body" fields.
+      String title = randomDoc.get('title');
+      String body = randomDoc.get('body');
+
+      // Return the values as a map.
+      return {'title': title, 'body': body};
+    } catch (e) {
+      print('Error retrieving random notification: $e');
+      return null;
+    }
+  }
+
   /// Builds and returns the UI for the split transaction screen.
   @override
   Widget build(BuildContext context) {
@@ -532,6 +562,16 @@ class _SplitTransactionScreenState extends State<SplitTransactionScreen> {
                                       'avatar': avatarUrl,
                                     };
                                   }());
+                                  final notificationData = await getRandomNotification();
+                                  String title = notificationData!['title']!;
+                                  String body = notificationData['body']!;
+                                  body = body.replaceAll("\$groupOwnerName", groupOwnerName!);
+                                  await pushService.sendPushNotification(
+                                    contactPhone: contactPhone,
+                                    title:title,
+                                    body:body
+
+                                  );
                                 }
 
                                 final List<Map<String, dynamic>> splitsList =
@@ -560,6 +600,8 @@ class _SplitTransactionScreenState extends State<SplitTransactionScreen> {
 
                                 // <-- New functionality: update each contact's friends mapping.
                                 await updateFriendsForContacts(groupOwnerName ?? '');
+
+
 
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
