@@ -63,7 +63,11 @@ class GroupCard extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('You owe', style: TextStyle(fontSize: 12)),
+                    Text(
+                      isGroupOwner ? 'They owe' : 'You owe',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+
                     Text(
                       '\$${owedAmount.toStringAsFixed(2)}',
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
