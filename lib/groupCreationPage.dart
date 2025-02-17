@@ -59,6 +59,17 @@ class _GroupCreationPageState extends State<GroupCreationPage>
       _errorMessage = null;
     });
   }
+  Future<bool> _checkContactsExist() async {
+    bool allContactsExist = true;
+    for (var contact in widget.selectedContacts) {
+      bool exists = await _contactExistsInFirestore(contact['phone']);
+      if (!exists) {
+        allContactsExist = false;
+        break;
+      }
+    }
+    return allContactsExist;  // Return the result
+  }
 
   Future<void> _loadQuoteFromFirestore() async {
     try {
@@ -108,6 +119,19 @@ class _GroupCreationPageState extends State<GroupCreationPage>
         _selectedExpenses.isNotEmpty &&
         _sliderValue > 1;
   }
+
+  Future<bool> _contactExistsInFirestore(String contactPhone) async {
+    try {
+      var userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(contactPhone)  // Assuming 'phone' is the document ID
+          .get();
+      return userDoc.exists;
+    } catch (e) {
+      return false;
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -327,7 +351,7 @@ class _GroupCreationPageState extends State<GroupCreationPage>
               Align(
                 alignment: Alignment.bottomCenter,
                 child: GestureDetector(
-                  onTap: () {
+                  onTap: () async {
                     if (!_canProceed()) {
                       // If the button is disabled, show a SnackBar.
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -341,26 +365,27 @@ class _GroupCreationPageState extends State<GroupCreationPage>
                   },
                   child: SlideToProceedButton(
                     onSlide: _canProceed()
-                        ? () {
-                      // Navigate to the next screen when all required fields are filled.
+                        ? () async {
+                      bool allContactsExist = await _checkContactsExist();
+                      // Immediately navigate to the next screen
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => SplitTransactionScreen(
-                            expenseItems: _selectedExpenses.toList(),
-                            amount: _sliderValue,
-                            contacts: widget.selectedContacts
-                                .map<Map<String, dynamic>>((contact) {
-                              return {
-                                'name': contact['name'].toString(),
-                                'number': (contact['phone'] ?? 'N/A')
-                                    .toString(),
-                                'avatar': contact['avatar'],
-                              };
-                            }).toList(),
-                            groupName: _groupNameController.text.trim(),
-                          ),
+                              expenseItems: _selectedExpenses.toList(),
+                              amount: _sliderValue,
+                              allContactsExist: allContactsExist,  // Wait for the result
+                          contacts: widget.selectedContacts
+                              .map<Map<String, dynamic>>((contact) {
+                            return {
+                              'name': contact['name'].toString(),
+                              'number': (contact['phone'] ?? 'N/A').toString(),
+                              'avatar': contact['avatar'],
+                            };
+                          }).toList(),
+                          groupName: _groupNameController.text.trim(),
                         ),
+                      ),
                       );
                     }
                         : () {},
