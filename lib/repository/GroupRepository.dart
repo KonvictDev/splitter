@@ -44,6 +44,7 @@ class GroupRepository {
     WriteBatch batch = FirebaseFirestore.instance.batch();
     DocumentReference userRef = FirebaseFirestore.instance.collection('users').doc(userPhone);
 
+
     for (int i = 0; i < contacts.length; i++) {
       final contact = contacts[i];
       final rawPhone = contact['number'];
@@ -89,18 +90,25 @@ class GroupRepository {
       if (contactPhone == null) continue;
 
       final DocumentReference docRef = firestore.collection('users').doc(contactPhone);
+      // Check if the document exists
+      final DocumentSnapshot docSnap = await docRef.get();
+      if (!docSnap.exists) {
+        // Skip updating if the document doesn't exist
+        continue;
+      }
 
-      batch.set(
+      // Use update instead of set to avoid creating a new document
+      // Using dot notation to update a nested field within 'groups'
+      batch.update(
         docRef,
         {
-          'groups': {groupName: groupData}
+          'groups.$groupName': groupData,
         },
-        SetOptions(merge: true),
       );
 
       batchCounter++;
 
-      // Commit the batch every 500 operations
+      // Commit the batch every 500 operations to respect Firestore limits
       if (batchCounter == 500) {
         await batch.commit();
         batch = firestore.batch();
@@ -113,6 +121,7 @@ class GroupRepository {
       await batch.commit();
     }
   }
+
 
 
   Future<void> updateFriendsForContactsWithSplits({

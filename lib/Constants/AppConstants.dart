@@ -16,4 +16,11 @@ class AppConstants {
   static const double textFieldWidth = 85.0;
   static const double borderRadius = 10.0;
   static const double dialogBorderRadius = 20.0;
+
+  // Example
+  static TextStyle titleStyle = TextStyle(
+    fontFamily: 'interBold',
+    fontSize: 32,
+    color: Colors.white,
+  );
 }

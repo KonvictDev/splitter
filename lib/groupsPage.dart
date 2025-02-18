@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
+import 'package:splitter/provider/balanceProvider.dart';
 import 'package:splitter/repository/GroupRepository.dart';
 import 'package:splitter/widgets/ExpenseBottomSheet.dart';
 import 'package:splitter/widgets/GroupCard.dart';
@@ -8,12 +10,12 @@ import 'package:splitter/widgets/GroupCard.dart';
 import 'GroupDetailsPage.dart';
 import 'groupCreationPage.dart';
 
-class GroupsPage extends StatefulWidget {
+class GroupsPage extends ConsumerStatefulWidget {
   @override
   _GroupsPageState createState() => _GroupsPageState();
 }
 
-class _GroupsPageState extends State<GroupsPage> {
+class _GroupsPageState extends ConsumerState<GroupsPage> {
   final GroupRepository _groupsRepository = GroupRepository();
   final Logger _logger = Logger();
   List<Map<String, dynamic>> groupList = [];
@@ -136,14 +138,11 @@ class _GroupsPageState extends State<GroupsPage> {
     );
   }
 
-  /// Calculates the overall owed amount across all groups.
-  double _calculateTotalOwed() {
-    return groupList.fold(0.0, (sum, group) => sum + (group['owedAmount'] as double));
-  }
+
 
   @override
   Widget build(BuildContext context) {
-    final totalOwed = _calculateTotalOwed();
+    final balanceState = ref.watch(balanceProvider);
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: null,
@@ -171,7 +170,7 @@ class _GroupsPageState extends State<GroupsPage> {
                           style: TextStyle(fontSize: 18),
                         ),
                         Text(
-                          '\$${totalOwed.toStringAsFixed(2)}',
+                          '\$${balanceState.balance.toStringAsFixed(2)}',
                           style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
