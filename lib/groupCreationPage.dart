@@ -73,31 +73,18 @@ class _GroupCreationPageState extends State<GroupCreationPage>
 
   Future<void> _loadQuoteFromFirestore() async {
     try {
-      // Fetch the quotes collection from Firestore
       var quoteCollection = FirebaseFirestore.instance.collection('quotes');
-
-      // Get all documents from the collection
       var querySnapshot = await quoteCollection.get();
 
-      // Randomly pick a quote
       if (querySnapshot.docs.isNotEmpty) {
-        var randomDoc =
-        querySnapshot.docs[Random().nextInt(querySnapshot.docs.length)];
+        var randomDoc = querySnapshot.docs[Random().nextInt(querySnapshot.docs.length)];
         var quoteData = randomDoc.data();
 
         setState(() {
-          _quotes.clear(); // clear the existing quotes if any
+          _quotes.clear();
           _quotes.add({
             'quote': quoteData['Quote'] ?? 'No quote available',
             'author': quoteData['Author'] ?? 'Unknown',
-          });
-        });
-      } else {
-        setState(() {
-          _quotes.clear();
-          _quotes.add({
-            'quote': 'No quotes available at the moment.',
-            'author': 'Unknown',
           });
         });
       }

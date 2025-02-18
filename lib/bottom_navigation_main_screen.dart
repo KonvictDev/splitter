@@ -1,19 +1,20 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'friends_screen.dart';
 import 'ProfilePage.dart';
 import 'groupsPage.dart';
 import 'home_page.dart';
 
-class BottomNavigationMainScreen extends StatefulWidget {
+class BottomNavigationMainScreen extends ConsumerStatefulWidget {
   @override
   _BottomNavigationMainScreenState createState() =>
       _BottomNavigationMainScreenState();
 }
 
 class _BottomNavigationMainScreenState
-    extends State<BottomNavigationMainScreen> {
+    extends ConsumerState<BottomNavigationMainScreen> {
   int _selectedIndex = 0;
 
   final List<Widget> _screens = [
