@@ -317,117 +317,6 @@ class GroupRepository {
     }
   }
 
-  /// Executes a transaction to “settle up” between the current user and the group owner.
-  // Future<void> settleUp(String groupId, String currentUserPhone, Map<String, dynamic> groupData) async {
-  //   final String? groupOwnerNumber = groupData['groupOwnerNumber'];
-  //   if (groupOwnerNumber == null || groupOwnerNumber.isEmpty) {
-  //     throw Exception("Group owner number is missing.");
-  //   }
-  //
-  //   final DocumentReference userRef =
-  //   FirebaseFirestore.instance.collection('users').doc(currentUserPhone);
-  //   final DocumentReference ownerRef =
-  //   FirebaseFirestore.instance.collection('users').doc(groupOwnerNumber);
-  //
-  //   try {
-  //     await FirebaseFirestore.instance.runTransaction((transaction) async {
-  //       final userSnapshot = await transaction.get(userRef);
-  //       final ownerSnapshot = await transaction.get(ownerRef);
-  //
-  //       if (!userSnapshot.exists) throw Exception("User document not found.");
-  //       if (!ownerSnapshot.exists) throw Exception("Group owner document not found.");
-  //
-  //       final userData = userSnapshot.data() as Map<String, dynamic>;
-  //       final ownerData = ownerSnapshot.data() as Map<String, dynamic>;
-  //
-  //       // --- Update Current User Document ---
-  //       if (userData.containsKey('groups') && userData['groups'][groupId] != null) {
-  //         Map<String, dynamic> groupEntry =
-  //         Map<String, dynamic>.from(userData['groups'][groupId]);
-  //         if (groupEntry.containsKey('splits') && groupEntry['splits'] is List) {
-  //           List<dynamic> splits = List<dynamic>.from(groupEntry['splits']);
-  //           List<dynamic> updatedSplits = splits.map((split) {
-  //             if (split is Map<String, dynamic> && split['phoneNumber'] == currentUserPhone) {
-  //               split['splitAmount'] = 0;
-  //             }
-  //             return split;
-  //           }).toList();
-  //           groupEntry['splits'] = updatedSplits;
-  //           Map<String, dynamic> groups = Map<String, dynamic>.from(userData['groups']);
-  //           groups[groupId] = groupEntry;
-  //           transaction.update(userRef, {'groups': groups});
-  //         } else {
-  //           throw Exception("Splits data not found in current user group.");
-  //         }
-  //
-  //         if (userData.containsKey('friends') && userData['friends'] is Map) {
-  //           Map<String, dynamic> friends = Map<String, dynamic>.from(userData['friends']);
-  //           bool friendUpdated = false;
-  //           friends.forEach((key, friend) {
-  //             if (friend is Map<String, dynamic> && friend['phoneNumber'] == groupOwnerNumber) {
-  //               friend['youOwe'] = 0;
-  //               friendUpdated = true;
-  //             }
-  //           });
-  //           if (friendUpdated) {
-  //             transaction.update(userRef, {'friends': friends});
-  //           } else {
-  //             throw Exception("Group owner's friend entry not found in current user document.");
-  //           }
-  //         } else {
-  //           throw Exception("Friends data not found in current user document.");
-  //         }
-  //       } else {
-  //         throw Exception("Group data not found in current user's groups.");
-  //       }
-  //
-  //       // --- Update Group Owner Document ---
-  //       if (ownerData.containsKey('groups') && ownerData['groups'][groupId] != null) {
-  //         Map<String, dynamic> groupEntryOwner =
-  //         Map<String, dynamic>.from(ownerData['groups'][groupId]);
-  //         if (groupEntryOwner.containsKey('splits') && groupEntryOwner['splits'] is List) {
-  //           List<dynamic> splitsOwner = List<dynamic>.from(groupEntryOwner['splits']);
-  //           List<dynamic> updatedSplitsOwner = splitsOwner.map((split) {
-  //             if (split is Map<String, dynamic> && split['phoneNumber'] == currentUserPhone) {
-  //               split['splitAmount'] = 0;
-  //             }
-  //             return split;
-  //           }).toList();
-  //           groupEntryOwner['splits'] = updatedSplitsOwner;
-  //           Map<String, dynamic> groupsOwner = Map<String, dynamic>.from(ownerData['groups']);
-  //           groupsOwner[groupId] = groupEntryOwner;
-  //           transaction.update(ownerRef, {'groups': groupsOwner});
-  //         } else {
-  //           throw Exception("Splits data not found in group owner's group.");
-  //         }
-  //
-  //         if (ownerData.containsKey('friends') && ownerData['friends'] is Map) {
-  //           Map<String, dynamic> friendsOwner = Map<String, dynamic>.from(ownerData['friends']);
-  //           bool friendUpdatedOwner = false;
-  //           friendsOwner.forEach((key, friend) {
-  //             if (friend is Map<String, dynamic> && friend['phoneNumber'] == currentUserPhone) {
-  //               friend['theyOwe'] = 0;
-  //               friendUpdatedOwner = true;
-  //             }
-  //           });
-  //           if (friendUpdatedOwner) {
-  //             transaction.update(ownerRef, {'friends': friendsOwner});
-  //           } else {
-  //             throw Exception("Current user's friend entry not found in group owner's document.");
-  //           }
-  //         } else {
-  //           throw Exception("Friends data not found in group owner's document.");
-  //         }
-  //       } else {
-  //         throw Exception("Group data not found in group owner's groups.");
-  //       }
-  //     });
-  //   } catch (e, stackTrace) {
-  //     logger.e("Error in settleUp", error: e, stackTrace: stackTrace);
-  //     rethrow;
-  //   }
-  // }
-
   Future<void> settleUp(String groupId, String currentUserPhone, Map<String, dynamic> groupData) async {
     final String? groupOwnerNumber = groupData['groupOwnerNumber'];
     if (groupOwnerNumber == null || groupOwnerNumber.isEmpty) {
@@ -496,8 +385,12 @@ class GroupRepository {
 
     try {
       await userRef.set({
-        'groups.$groupId.splits': splits,
-        'groups.$groupId.history': FieldValue.arrayUnion([historyEntry]),
+        'groups': {
+          groupId: {
+            'splits': splits,
+            'history': FieldValue.arrayUnion([historyEntry]),
+          }
+        }
       }, SetOptions(merge: true));
     } catch (e, stackTrace) {
       logger.e("Error updating expense for group", error: e, stackTrace: stackTrace);
@@ -514,26 +407,27 @@ class GroupRepository {
     try {
       final userSnapshot = await userRef.get();
       final userData = userSnapshot.data() as Map<String, dynamic>? ?? {};
-      final friendsMap = userData['friends'] as Map<String, dynamic>? ?? {};
-
-      Map<String, dynamic> updatedFriends = {};
+      final Map<String, dynamic> friendsMap =
+      Map<String, dynamic>.from(userData['friends'] ?? {});
 
       for (var split in splits) {
         if (split is! Map<String, dynamic> || split['phoneNumber'] == null) continue;
 
         final contactPhone = split['phoneNumber'];
         final contactName = split['name'] ?? 'Unknown';
-        final existingOwe = double.tryParse(friendsMap[contactPhone]?['theyOwe']?.toString() ?? '0') ?? 0.0;
+        final existingOwe =
+            double.tryParse(friendsMap[contactPhone]?['theyOwe']?.toString() ?? '0') ?? 0.0;
 
-        updatedFriends['friends.$contactPhone'] = {
+        // Update the friend details directly in the map
+        friendsMap[contactPhone] = {
           'name': contactName,
           'phoneNumber': contactPhone,
-          'theyOwe': (existingOwe + expensePerFriend).toStringAsFixed(2),
+          'theyOwe': existingOwe + expensePerFriend,
         };
       }
 
-      if (updatedFriends.isNotEmpty) {
-        await userRef.update(updatedFriends);
+      if (friendsMap.isNotEmpty) {
+        await userRef.update({'friends': friendsMap});
       }
     } catch (e, stackTrace) {
       logger.e("Error updating friends for expense", error: e, stackTrace: stackTrace);
