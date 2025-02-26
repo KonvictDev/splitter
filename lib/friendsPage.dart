@@ -24,12 +24,20 @@ class _FriendsPageState extends State<FriendsPage> {
   bool _isPermissionGranted = false;
   bool _isLoading = false;
   String _errorMessage = '';
-  Set<Contact> _selectedContacts = {};
+  Set<String> _selectedContactKeys = {};
 
   @override
   void initState() {
     super.initState();
     _requestPermission();
+    _initializeSelectedContactKeys();
+  }
+
+  void _initializeSelectedContactKeys() {
+    for (var selected in widget.selectedContacts) {
+      String key = '${selected['name']}|${selected['phone']}';
+      _selectedContactKeys.add(key);
+    }
   }
 
   Future<void> _requestPermission() async {
@@ -210,14 +218,15 @@ class _FriendsPageState extends State<FriendsPage> {
       itemCount: _filteredContacts.length,
       itemBuilder: (context, index) {
         final contact = _filteredContacts[index];
-        final isSelected = _selectedContacts.contains(contact);
+        String key = '${contact.displayName ?? ''}|${contact.phones?.isNotEmpty == true ? contact.phones!.first.value : ''}';
+        final isSelected = _selectedContactKeys.contains(key);
         return GestureDetector(
           onTap: () {
             setState(() {
               if (isSelected) {
-                _selectedContacts.remove(contact);
+                _selectedContactKeys.remove(key);
               } else {
-                _selectedContacts.add(contact);
+                _selectedContactKeys.add(key);
               }
             });
           },
@@ -356,24 +365,36 @@ class _FriendsPageState extends State<FriendsPage> {
                   Expanded(child: Center(child: Text(_errorMessage))),
               ],
             ),
-            if (_selectedContacts.isNotEmpty)
+            if (_selectedContactKeys.isNotEmpty)
               Positioned(
                 bottom: 30.0,
                 left: 16.0,
                 right: 16.0,
                 child: ElevatedButton(
                   onPressed: () async {
-                    // Create list of selected contacts' data
-                    List<Map<String, dynamic>> selectedContactsData = await Future.wait(
-                        _selectedContacts.map((contact) async {
-                          // Check if the avatar Uint8List is empty, then load the default avatar
-                          final avatarBytes = contact.avatar!.isEmpty ? await getDefaultAvatar() : contact.avatar;
-                          return {
-                            'name': contact.displayName ?? 'Unnamed Contact',
-                            'phone': contact.phones?.isNotEmpty == true ? contact.phones!.first.value : 'No phone',
-                            'avatar': avatarBytes,
-                          };
-                        })
+                    List<Map<String, dynamic>> selectedContactsData =
+                    await Future.wait(
+                      _contacts
+                          .where((contact) {
+                        String key =
+                            '${contact.displayName ?? ''}|${contact.phones?.isNotEmpty == true ? contact.phones!.first.value : ''}';
+                        return _selectedContactKeys.contains(key);
+                      })
+                          .map((contact) async {
+                        // Load default avatar if needed.
+                        final avatarBytes = (contact.avatar == null ||
+                            contact.avatar!.isEmpty)
+                            ? await getDefaultAvatar()
+                            : contact.avatar;
+                        return {
+                          'name': contact.displayName ?? 'Unnamed Contact',
+                          'phone': contact.phones?.isNotEmpty == true
+                              ? contact.phones!.first.value
+                              : 'No phone',
+                          'avatar': avatarBytes,
+                        };
+                      })
+                          .toList(),
                     );
 
                     Navigator.push(
@@ -391,7 +412,7 @@ class _FriendsPageState extends State<FriendsPage> {
                     padding: const EdgeInsets.symmetric(vertical: 16.0),
                   ),
                   child: Text(
-                    'Proceed (${_selectedContacts.length})',
+                    'Proceed (${_selectedContactKeys.length})',
                     style: const TextStyle(fontSize: 16.0, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                 ),

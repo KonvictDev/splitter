@@ -5,6 +5,7 @@ import 'package:splitter/widgets/AmountSliderWidget.dart';
 import 'package:splitter/widgets/ExpenseChipWidget.dart';
 import 'package:splitter/widgets/QuoteWidget.dart';
 import 'package:splitter/widgets/SlideToProceedButton.dart';
+import 'bottom_navigation_main_screen.dart';
 import 'friendsPage.dart';
 import 'dart:math';
 
@@ -23,6 +24,7 @@ class _GroupCreationPageState extends State<GroupCreationPage>
   final Set<String> _selectedExpenses = {};
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _groupNameController = TextEditingController();
+  List<Map<String, dynamic>> _selectedContacts = [];
   String? _errorMessage;
 
   late AnimationController _animationController;
@@ -35,6 +37,7 @@ class _GroupCreationPageState extends State<GroupCreationPage>
   void initState() {
     super.initState();
     _amountController.text = _sliderValue.toStringAsFixed(2);
+    _selectedContacts = List.from(widget.selectedContacts);
 
     _animationController = AnimationController(
       vsync: this,
@@ -102,7 +105,7 @@ class _GroupCreationPageState extends State<GroupCreationPage>
   // Updated _canProceed() method that now also requires a non-empty group name.
   bool _canProceed() {
     return _groupNameController.text.trim().isNotEmpty &&
-        widget.selectedContacts.isNotEmpty &&
+        _selectedContacts.isNotEmpty &&
         _selectedExpenses.isNotEmpty &&
         _sliderValue > 1;
   }
@@ -148,8 +151,15 @@ class _GroupCreationPageState extends State<GroupCreationPage>
                         children: [
                           IconButton(
                             icon: Icon(Icons.arrow_back, color: Colors.black),
-                            onPressed: () => Navigator.pop(context),
+                            onPressed: () {
+                              Navigator.pushAndRemoveUntil(
+                                context,
+                                MaterialPageRoute(builder: (context) => BottomNavigationMainScreen()),
+                                    (Route<dynamic> route) => false,
+                              );
+                            },
                           ),
+
                           SizedBox(width: 8),
                           Text(
                             'Add people',
@@ -169,24 +179,26 @@ class _GroupCreationPageState extends State<GroupCreationPage>
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => FriendsPage(
-                                      selectedContacts:
-                                      widget.selectedContacts),
+                                    selectedContacts: _selectedContacts, // pass the state variable
+                                  ),
                                 ),
                               );
-
                               if (newSelectedContacts != null) {
                                 setState(() {
-                                  widget.selectedContacts
-                                      .addAll(newSelectedContacts);
+                                  // Merge new contacts with the existing ones while avoiding duplicates.
+                                  for (var contact in newSelectedContacts) {
+                                    if (!_selectedContacts.any((c) => c['phone'] == contact['phone'])) {
+                                      _selectedContacts.add(contact);
+                                    }
+                                  }
                                 });
-                              } else if (widget.selectedContacts.isEmpty) {
+                              } else if (_selectedContacts.isEmpty) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                      content: Text(
-                                          "You haven't selected any contacts yet.")),
+                                  SnackBar(content: Text("You haven't selected any contacts yet.")),
                                 );
                               }
                             },
+
                             child: CircleAvatar(
                               radius: 30,
                               backgroundColor: Colors.white,
@@ -210,9 +222,9 @@ class _GroupCreationPageState extends State<GroupCreationPage>
                               scrollDirection: Axis.horizontal,
                               child: Row(
                                 children: List.generate(
-                                  widget.selectedContacts.length,
+                                  _selectedContacts.length,
                                       (index) {
-                                    var contact = widget.selectedContacts[index];
+                                    var contact = _selectedContacts[index];
                                     return Transform.translate(
                                       offset: Offset(-20.0 * index, 0),
                                       child: Padding(
@@ -354,28 +366,36 @@ class _GroupCreationPageState extends State<GroupCreationPage>
                     onSlide: _canProceed()
                         ? () async {
                       bool allContactsExist = await _checkContactsExist();
-                      // Immediately navigate to the next screen
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => SplitTransactionScreen(
-                              expenseItems: _selectedExpenses.toList(),
-                              amount: _sliderValue,
-                              allContactsExist: allContactsExist,  // Wait for the result
-                          contacts: widget.selectedContacts
-                              .map<Map<String, dynamic>>((contact) {
-                            return {
-                              'name': contact['name'].toString(),
-                              'number': (contact['phone'] ?? 'N/A').toString(),
-                              'avatar': contact['avatar'],
-                            };
-                          }).toList(),
-                          groupName: _groupNameController.text.trim(),
+                        PageRouteBuilder(
+                          transitionDuration: Duration(milliseconds: 300),
+                          pageBuilder: (context, animation, secondaryAnimation) =>
+                              SplitTransactionScreen(
+                                expenseItems: _selectedExpenses.toList(),
+                                amount: _sliderValue,
+                                allContactsExist: allContactsExist,
+                                contacts: widget.selectedContacts.map<Map<String, dynamic>>((contact) {
+                                  return {
+                                    'name': contact['name'].toString(),
+                                    'number': (contact['phone'] ?? 'N/A').toString(),
+                                    'avatar': contact['avatar'],
+                                  };
+                                }).toList(),
+                                groupName: _groupNameController.text.trim(),
+                              ),
+                          transitionsBuilder:
+                              (context, animation, secondaryAnimation, child) {
+                            return FadeTransition(
+                              opacity: animation,
+                              child: child,
+                            );
+                          },
                         ),
-                      ),
                       );
                     }
                         : () {},
+
                     isEnabled: _canProceed(),
                   ),
                 ),

@@ -167,6 +167,19 @@ class _SplitTransactionScreenState extends State<SplitTransactionScreen> {
     final avatarUrl = await _groupsRepository.uploadAvatar(uniqueFileName, contact['avatar']);
 
     // Send push notification without awaiting the result.
+    await _sendPushNotification(contactPhone, groupOwnerName, notificationFuture);
+
+    return {
+      'name': contact['name'],
+      'splitAmount': (customContactShares != null && customContactShares!.length > index)
+          ? customContactShares![index]
+          : splitCalculator.individualShare,
+      'phoneNumber': contactPhone,
+      'avatar': avatarUrl,
+    };
+  }
+
+  Future<void> _sendPushNotification(String contactPhone, String? groupOwnerName, Future<dynamic> notificationFuture) async {
     notificationFuture.then((notificationData) {
       if (notificationData != null) {
         String title = notificationData['title']!;
@@ -179,17 +192,7 @@ class _SplitTransactionScreenState extends State<SplitTransactionScreen> {
         ).catchError((_) {});
       }
     }).catchError((_) {});
-
-    return {
-      'name': contact['name'],
-      'splitAmount': (customContactShares != null && customContactShares!.length > index)
-          ? customContactShares![index]
-          : splitCalculator.individualShare,
-      'phoneNumber': contactPhone,
-      'avatar': avatarUrl,
-    };
   }
-
 
   Future<void> _handleSendSplit() async {
     // Early validations

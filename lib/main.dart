@@ -2,16 +2,21 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive/hive.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'splash_screen.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();  // Ensure Flutter bindings are initialized
+  WidgetsFlutterBinding.ensureInitialized();// Ensure Flutter bindings are initialized
+
   await Firebase.initializeApp();
   await FirebaseAppCheck.instance.activate(
     webProvider: ReCaptchaV3Provider('recaptcha-v3-site-key'),
     androidProvider: AndroidProvider.debug,
     appleProvider: AppleProvider.appAttest,
   );// Initialize Firebase
+  await Hive.initFlutter();
+  Hive.openBox('transactions');
   runApp(const ProviderScope(
     child: MyApp(),
   ));
